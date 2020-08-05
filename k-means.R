@@ -15,6 +15,14 @@ library(gridExtra)
 library(RColorBrewer)
 library(tidyr)
 library(scatterplot3d)
+library(cluster)
+library(GGally)
+library(plotly)
+
+# Para Test de Normalidad
+library(normtest)
+library(nortest)
+library(moments)
 
 # - code: Numero del código de la muestra
 # - clumpThickness: Grosor del grupo (1 - 10)
@@ -45,7 +53,8 @@ columns = c("code",
 
 # Se procede a almacenar los datos desde el repositorio web "Breast Cancer Wisconsin" (Original), esto en
 # un data frame llamado "df"
-url = "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data"
+# url = "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data"
+url = "breast-cancer-wisconsin.data"
 df = read.csv(url, header = F, sep=",", col.names = columns)
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
@@ -60,6 +69,7 @@ df = read.csv(url, header = F, sep=",", col.names = columns)
 # tipo de relación e influencia con las demás variables ni el problema de estudio, es solo un
 # numero, por lo que se puede descartar
 df <- subset(df, select = -c(code))
+df.original <- df
 
 # En segunda instancia, para efectos de lo que se busca lograr con el método de las k-medias,
 # tampoco tiene sentido conservar la variable "class", pues este método de clustering es del
@@ -69,6 +79,7 @@ df <- subset(df, select = -c(code))
 # esta variable para efectos de comparación.
 df <- subset(df, select = -c(class))
 
+#______________________________________________________________________________________________________________________ #
 #______________________________________________________________________________________________________________________ #
 # I. MISSING VALUES
 
@@ -105,15 +116,16 @@ md.pattern(df)
 
 # Otra manera de verificar esto, es a través del paquete "VIM", para dilucidar esto a través
 # de gráficos mas agradables a la vista
-mice_plot <- aggr(df, 
-                  col = c('navyblue','yellow'),
-                  numbers = TRUE, 
-                  sortVars = TRUE,
-                  labels = names(df), 
-                  cex.axis = .55,
-                  gap = 3, 
-                  ylab = c("Missing data","Pattern")
-                  )
+mice_plot <- aggr(
+  df, 
+  col = c('navyblue','yellow'),
+  numbers = TRUE, 
+  sortVars = TRUE,
+  labels = names(df), 
+  cex.axis = .55, 
+  gap = 3, 
+  ylab = c("Missing data","Pattern")
+)
 
 # Para el gráfico anterior, las barras de color amarillo representan porcentajes de 
 # missing values, mientras que las azules representan aquellos que no lo son, por ende se
@@ -121,8 +133,10 @@ mice_plot <- aggr(df,
 # missing values, mientras que un 2.3% corresponde a missing values pertenecientes 
 # únicamente a la variable "bareNuclei".
 
-# a. Listwise Deletion
-# 
+###########################
+# a. Listwise Deletion    #
+###########################
+
 # Una de las formas de manejar los valores omitidos, consiste en simplemente eliminar cada
 # observación que en sus variables presente uno o mas missing values, ahora bien la simplicidad
 # de este método viene perjudicado por el hecho de que el modelo pierde fuerza, ya que se
@@ -133,10 +147,10 @@ mice_plot <- aggr(df,
 # un numero bastante bajo para considerar este método.
 df.listwise <- na.omit(df)
 
-# b. Pairwise Deletion
+####################
+# b. Imputation    #
+####################
 
-# c. Imputation
-#
 # Si se busca minimizar el impacto que tiene la perdida de información derivada de los métodos de
 # eliminación, resulta mas pertinente emplear los denominados métodos de imputación, los cuales en
 # vez de eliminar observaciones que presentan valores omitidos, tratan de predecir que valor podría 
@@ -166,12 +180,14 @@ summary(miceImp)
 miceImp$imp$bareNuclei
 
 # Así también es posible manipular cada uno de los conjuntos por separado.
-df.miceImp1 <- complete(miceImp)
-
+df.miceImp1 <- complete(miceImp, 1)
+df.miceImp2 <- complete(miceImp, 2)
+df.miceImp3 <- complete(miceImp, 3)
+df.miceImp4 <- complete(miceImp, 4)
+df.miceImp5 <- complete(miceImp, 5)
 
 # Ahora bien, como se generan 5 conjuntos de datos distintos en este caso, una buena practica
 # consiste en combinar los resultados para obtener una predicción mas confiable.
-
 
 # - Usando "missForest Package"
 # Otra de las formas de realizar imputaciones, consiste en implementar un método basado en el 
@@ -211,6 +227,8 @@ df.miscMaxImp$bareNuclei <- with(df, impute(bareNuclei, max))
 # - Usando "mi Package"
 mi_data <- mi(df, seed = 335)
 summary(mi_data)
+
+#______________________________________________________________________________________________________________________ #
 #______________________________________________________________________________________________________________________ #
 # II. REDUCCION DE DIMENSIONALIDAD
 
@@ -218,7 +236,7 @@ apply(df.listwise, 2, var)
 apply(df.forestImp, 2, var)
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
-# CLUSTERING # //////////////////////////////////////////////////////////////////////////////////////////////// #
+# CLUSTERING # //////////////////////////////////////////////////////////////////////////////////////////////////////// #
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
 
 # Como bien sabemos, este modelo o algoritmo de agrupamiento consta de tomar un conjunto de datos 
@@ -239,7 +257,210 @@ apply(df.forestImp, 2, var)
 #    asignaciones de puntos entre clases no cambie.
 
 #______________________________________________________________________________________________________________________ #
-# I. DETERMINAR K PTIMO
+#______________________________________________________________________________________________________________________ #
+# I. TEST DE NORMALIDAD
+
+df.current <- df.forestImp
+
+###################
+# a. Hipótesis    #
+###################
+
+# H0: La muestra proviene de una distribución normal.
+# H1: La muestra no proviene de una distribución normal.
+
+################################
+# b. Nivel de Significancia    #
+################################
+
+# El nivel de significancia que se trabajará es de 0.05. Alfa=0.05
+
+# Criterio de Decisión
+
+# Si p < Alfa Se rechaza Ho
+# Si p >= Alfa No se rechaza Ho
+
+#####################
+# c. Histogramas    #
+#####################
+
+hist.var1 <- ggplot(data = df.current, aes(clumpThickness)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var1
+
+hist.var2 <- ggplot(data = df.current, aes(unifCellSize)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var2
+
+hist.var3 <- ggplot(data = df.current, aes(unifCellShape)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var3
+
+hist.var4 <- ggplot(data = df.current, aes(marginalAdhesion)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var4
+
+hist.var5 <- ggplot(data = df.current, aes(epithCellSize)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var5
+
+hist.var6 <- ggplot(data = df.current, aes(bareNuclei)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var6
+
+hist.var7 <- ggplot(data = df.current, aes(blandChromatin)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var7
+
+hist.var8 <- ggplot(data = df.current, aes(normalNucleoli)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var8
+
+hist.var9 <- ggplot(data = df.current, aes(mitoses)) + 
+  geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
+  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  geom_density(col = 1)
+
+hist.var9
+
+grid.arrange(hist.var1,
+             hist.var2,
+             hist.var3,
+             hist.var4,
+             hist.var5,
+             hist.var6,
+             hist.var7,
+             hist.var8,
+             hist.var9,
+             nrow = 3)
+
+#########################################################
+# d. Pruebas de Normalidad con el paquete "normtest"    #
+#########################################################
+
+### Prueba de Pearson chi-square ###
+# basada en una distribución Ji cuadrado y que corresponde a una prueba de bondad de ajuste.
+
+pearson.test(df.current$clumpThickness)
+pearson.test(df.current$unifCellSize)
+pearson.test(df.current$unifCellShape)
+pearson.test(df.current$marginalAdhesion)
+pearson.test(df.current$epithCellSize)
+pearson.test(df.current$bareNuclei)
+pearson.test(df.current$blandChromatin)
+pearson.test(df.current$normalNucleoli)
+pearson.test(df.current$mitoses)
+
+### Prueba de Shapiro-Francia ###
+
+sf.test(df.current$clumpThickness)
+sf.test(df.current$unifCellSize)
+sf.test(df.current$unifCellShape)
+sf.test(df.current$marginalAdhesion)
+sf.test(df.current$epithCellSize)
+sf.test(df.current$bareNuclei)
+sf.test(df.current$blandChromatin)
+sf.test(df.current$normalNucleoli)
+sf.test(df.current$mitoses)
+
+########################################################
+# e. Pruebas de Normalidad con el paquete "nortest"    #
+########################################################
+
+### Prueba de Jarque Bera ###
+
+jb.norm.test(df.current$clumpThickness)
+jb.norm.test(df.current$unifCellSize)
+jb.norm.test(df.current$unifCellShape)
+jb.norm.test(df.current$marginalAdhesion)
+jb.norm.test(df.current$epithCellSize)
+jb.norm.test(df.current$bareNuclei)
+jb.norm.test(df.current$blandChromatin)
+jb.norm.test(df.current$normalNucleoli)
+jb.norm.test(df.current$mitoses)
+
+### Prueba de Geary ###
+# Usa los valores acumulados muestrales, sus medias y desviaciones estándar.
+
+geary.norm.test(df.current$clumpThickness)
+geary.norm.test(df.current$unifCellSize)
+geary.norm.test(df.current$unifCellShape)
+geary.norm.test(df.current$marginalAdhesion)
+geary.norm.test(df.current$epithCellSize)
+geary.norm.test(df.current$bareNuclei)
+geary.norm.test(df.current$blandChromatin)
+geary.norm.test(df.current$normalNucleoli)
+geary.norm.test(df.current$mitoses)
+
+########################################################
+# f. Pruebas de Normalidad con el paquete "moments"    #
+########################################################
+
+### Prueba de Agostino ###
+
+agostino.test(df.current$clumpThickness)
+agostino.test(df.current$unifCellSize)
+agostino.test(df.current$unifCellShape)
+agostino.test(df.current$marginalAdhesion)
+agostino.test(df.current$epithCellSize)
+agostino.test(df.current$bareNuclei)
+agostino.test(df.current$blandChromatin)
+agostino.test(df.current$normalNucleoli)
+agostino.test(df.current$mitoses)
+
+###########################################################
+# g. Funciones incluidas en los paquetes básicos de R.    #
+###########################################################
+
+### Prueba de Shapiro-Wilk ###
+# Es más poderosa cuando se compara con otras pruebas de normalidad cuando la muestra es pequeña.
+
+shapiro.test(df.current$clumpThickness)
+shapiro.test(df.current$unifCellSize)
+shapiro.test(df.current$unifCellShape)
+shapiro.test(df.current$marginalAdhesion)
+shapiro.test(df.current$epithCellSize)
+shapiro.test(df.current$bareNuclei)
+shapiro.test(df.current$blandChromatin)
+shapiro.test(df.current$normalNucleoli)
+shapiro.test(df.current$mitoses)
+
+#######################
+# h. Conclusiones.    #
+#######################
+
+# De acuerdo a los resultados obtenidos en un principio para el método gráfico, ilustrado en los 
+# histogramas obtenidos, ademas de los resultados arrojados por cada uno de los test realizados, se
+# puede concluir que existe suficiente evidencia estadística para rechazar Ho, por lo que se puede 
+# decir que las variables no siguen una distribución normal.
+
+#______________________________________________________________________________________________________________________ #
+#______________________________________________________________________________________________________________________ #
+# II. DETERMINAR K ÓPTIMO
 
 # Ahora bien existe una relación entre el numero de conjuntos a formar, y la WCSS (Within Clusters 
 # Summed Squares), es decir, la suma de los cuadrados dentro del cluster, y es que generalmente
@@ -251,27 +472,34 @@ apply(df.forestImp, 2, var)
 
 # El primer paso consta de determinar el k mas apropiado, que logre optimizar al agrupamiento de
 # forma de equilibrar el numero de centroides que corresponde al numero de clusters creados, y la
-# WCSS. Para esto se aplica una técnica, que permite visualmente tener una mejor idea del valor
-# o conjunto de valores k para los cuales resulta optimo aplicar el algoritmo, correspondiente al 
-# llamado "Elbow Method" o "Método del Codo", el cual en pocas palabras busca seleccionar numero de 
-# grupos ideal optimizando el WCSS.
+# WCSS. Para lograr un consenso respecto al k, se emplean 3 métodos que emplean distintos 
+# parámetros en la formación de cada cluster. Para cada uno de los métodos se define un rango de
+# 10 valores de prueba para k.
 
-# Entonces se procede a crear un vector que almacenara las WCSS para un rango determinado de valores
-# de k de prueba, e identificar cual de estos es mas conveniente utilizar. En este caso particular,
-# se crea un vector de 20 valores, correspondientes a la WCSS considerando que el clustering es
-# realizado considerando desde 1 grupo (donde la WCSS debería ser mayor), hasta 20 grupos (donde la
-# WCSS debería ser menor).
+# Ahora bien, para la utilización de cada uno de estos método es necesario tener en consideración 
+# la distribución bajo la cual se comporta este conjunto de datos, y tal como se pudo concluir en el
+# apartado del Test de Normalidad, los datos no siguen una distribución normal, razón por la cual no
+# resulta recomendable utilizar 
 
-wcss <- vector()
-for(i in 1:20){
-  wcss[i] <- sum(kmeans(df.listwise, i)$withinss)
-}
+gower.dist <- daisy(as.matrix(df.current), metric = "gower", stand = FALSE)
+manhattan.dist <- daisy(as.matrix(df.current), metric = "manhattan", stand = FALSE)
+distance <- gower.dist
 
-ggplot() + geom_point(aes(x = 1:20, y = wcss), color = 'blue') + 
-  geom_line(aes(x = 1:20, y = wcss), color = 'blue') + 
+#########################
+# a. Método del Codo    #
+#########################
+
+# El primero de los métodos se basa principalmente en la suma de los cuadrados dentro de los clusters
+# para un determinado rango de valores para k, dibujando una curva continua desde k con valor 0 hasta 
+# el máximo escogido. Cada transición de un k al siguiente significa una variación en la WCSS, al 
+# aumentar en uno el valor de k, la idea básica es escoger un k cuya transición signifique una caída
+# significante de la WCSS, lo suficiente para compensar el ingreso de un nuevo cluster.
+
+fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "wss", k.max = 10) + 
   ggtitle("Método del Codo") + 
-  xlab('Cantidad de Centroides k') + 
-  ylab('WCSS')
+  xlab("k") +
+  ylab("WCSS") +
+  geom_vline(xintercept = 2, linetype = "dashed", color = "steelblue")
 
 # De acuerdo al gráfico anterior, en el eje "Y" se tiene la WCSS, mientras que para el eje "X" se
 # tiene la cantidad de centroides k, que también coincide con el numero de grupos resultantes del
@@ -280,138 +508,161 @@ ggplot() + geom_point(aes(x = 1:20, y = wcss), color = 'blue') +
 # mucho mas pausada, dándole a la curva la forma de un "codo". Para escoger el valor optimo de k, la
 # idea consiste en encontrar el punto para el cual la WCSS ya no sufre variaciones significantes al
 # aumentar el k, lo que significa que la WCSS ganada no es suficientemente significante en 
-# comparación con aumentar el k una unidad. Esto resulta mas o menos evidente entre los puntos
-# correspondientes los valores de k 2 y 5, y para los cuales se aplica el modelo a continuación.
+# comparación con aumentar el k una unidad. Finalmente, para este método el valor para k que 
+# resulta ser optimo es un numero de 2 clusters.
 
-kmeans2 <- kmeans(df.listwise, 2, iter.max = 1000, nstart = 10)
-kmeans3 <- kmeans(df.listwise, 3, iter.max = 1000, nstart = 10)
-kmeans4 <- kmeans(df.listwise, 4, iter.max = 1000, nstart = 10)
-kmeans5 <- kmeans(df.listwise, 5, iter.max = 1000, nstart = 10)
+##############################
+# b. Método de la Silueta    #
+##############################
+
+# En resumen, la aproximación del promedio de la silueta mide la calidad de un clustering.
+# Esto significa que determina que tan bien un objeto cae dentro de un determinado 
+# cluster, por consiguiente, una gran promedio en el ancho de la silueta indica un buen
+# clustering.
+
+fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "silhouette", k.max = 10) + 
+  ggtitle("Silhouette Method") + 
+  xlab("k") +
+  ylab("Ancho Promedio de Silueta")
+
+# Observando los resultados del gráfico anterior, los valores de k para los cuales el ancho
+# de silueta promedio se maximiza en orden descendente corresponden a 2, 3 y 9.
+
+#########################################
+# c. Método de la Brecha Estadística    #
+#########################################
+
+# Este método compara la WCSS para diferentes valores de k con sus valores esperados bajo una
+# distribución con nula referencia de los datos, es decir una distribución sin un clustering tan
+# obvio. Este conjunto es generado utilizando las simulaciones de Monte Carlo en el proceso de 
+# muestreo. 
+
+# fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "gap_stat", k.max = 10) +
+#  ggtitle("Método de la Brecha Estadistica") + 
+#  xlab("k") +
+#  ylab("Brecha")
+  
+# Finalmente para este método, el k optimo recae en el valor 6.
+
+#______________________________________________________________________________________________________________________ #
+#______________________________________________________________________________________________________________________ #
+# III. ALGORITMO K-MEDIAS
+
+kmeans2 <- kmeans(as.matrix(distance), 2, iter.max = 1000, nstart = 25)
+kmeans2
+kmeans3 <- kmeans(as.matrix(distance), 3, iter.max = 1000, nstart = 25)
+kmeans3
+kmeans4 <- kmeans(as.matrix(distance), 4, iter.max = 1000, nstart = 25)
+kmeans4
+kmeans5 <- kmeans(as.matrix(distance), 5, iter.max = 1000, nstart = 25)
+kmeans5
+kmeans6 <- kmeans(as.matrix(distance), 6, iter.max = 1000, nstart = 25)
+kmeans6
 
 kmeans2.p <- fviz_cluster(
   kmeans2,
-  data = df.listwise,
+  data = as.matrix(distance),
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 2",
   xlab = "X",
   ylab = "Y",
-  palette = "Set2"
+  palette = "jco",
 )
 kmeans2.p
 
+kmeansA.p <- fviz_cluster(
+  kmeans2,
+  data = as.matrix(distance),
+  geom = "point",
+  ellipse.type = "norm",
+  main = "Clusters k = 2",
+  xlab = "X",
+  ylab = "Y",
+  palette = "jco"
+)
+kmeansA.p
+
 kmeans3.p <- fviz_cluster(
   kmeans3,
-  data = df.listwise,
+  data = as.matrix(distance),
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 3",
   xlab = "X",
   ylab = "Y",
-  palette = "Set2"
+  palette = "jco"
 )
 kmeans3.p
 
 kmeans4.p <- fviz_cluster(
   kmeans4,
-  data = df.listwise,
+  data = as.matrix(distance),
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 4",
   xlab = "X",
   ylab = "Y",
-  palette = "Set2"
+  palette = "jco"
 )
 kmeans4.p
 
 kmeans5.p <- fviz_cluster(
   kmeans5,
-  data = df.listwise,
+  data = as.matrix(distance),
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 5",
   xlab = "X",
   ylab = "Y",
-  palette = "Set2"
+  palette = "jco"
 )
 kmeans5.p
 
+kmeans6.p <- fviz_cluster(
+  kmeans6,
+  data = as.matrix(distance),
+  geom = "point",
+  ellipse.type = "norm",
+  main = "Clusters k = 6",
+  xlab = "X",
+  ylab = "Y",
+  palette = "jco"
+)
+kmeans6.p
+
 grid.arrange(kmeans2.p, kmeans3.p, kmeans4.p, kmeans5.p, nrow = 2)
 
-# DENDOGRAMAS 
 
-dend2 <- hcut(df.listwise, k = 2, hc_method = "complete")
-dend3 <- hcut(df.listwise, k = 3, hc_method = "complete")
-dend4 <- hcut(df.listwise, k = 4, hc_method = "complete")
-dend5 <- hcut(df.listwise, k = 5, hc_method = "complete")
-
-dend2.p <- fviz_dend(
-  dend2,
-  show_labels = FALSE,
-  rect = TRUE,
-  main = "Dendograma k = 2",
-  ylab = "Altura",
-  ggtheme = theme_grey()
-)
-dend2.p
-
-dend3.p <- fviz_dend(
-  dend3, 
-  show_labels = FALSE,
-  rect = TRUE,
-  main = "Dendograma k = 3",
-  ylab = "Altura",
-  ggtheme = theme_grey()
-)
-dend3.p
-
-dend4.p <- fviz_dend(
-  dend4, 
-  show_labels = FALSE, 
-  rect = TRUE,
-  main = "Dendograma k = 4",
-  ylab = "Altura",
-  ggtheme = theme_grey()
-)
-dend4.p
-
-dend5.p <- fviz_dend(
-  dend5, show_labels = FALSE,
-  rect = TRUE,
-  main = "Dendograma k = 5",
-  ylab = "Altura",
-  ggtheme = theme_grey()
-)
-dend5.p
-
-# MAPAS DE CALOR
-
-kmeans2$size
-kmeans3$size
-kmeans4$size
-kmeans5$size
+#______________________________________________________________________________________________________________________ #
+#______________________________________________________________________________________________________________________ #
+# IV. MAPAS DE CALOR
 
 kmeans2.c <- kmeans2$centers
 kmeans3.c <- kmeans3$centers
 kmeans4.c <- kmeans4$centers
 kmeans5.c <- kmeans5$centers
+kmeans6.c <- kmeans6$centers
 
 cluster2 <- c(1: 2)
 cluster3 <- c(1: 3)
 cluster4 <- c(1: 4)
 cluster5 <- c(1: 5)
+cluster6 <- c(1: 6)
 
 center2_df <- data.frame(cluster2, kmeans2.c)
 center3_df <- data.frame(cluster3, kmeans3.c)
 center4_df <- data.frame(cluster4, kmeans4.c)
 center5_df <- data.frame(cluster5, kmeans5.c)
+center6_df <- data.frame(cluster6, kmeans6.c)
 
 hm.palette <- colorRampPalette(rev(brewer.pal(10, 'RdYlGn')), space='Lab')
 
-center2Reshape <- gather(center2_df, caracteristica, valor, clumpThickness: mitoses)
-center3Reshape <- gather(center3_df, caracteristica, valor, clumpThickness: mitoses)
-center4Reshape <- gather(center4_df, caracteristica, valor, clumpThickness: mitoses)
-center5Reshape <- gather(center5_df, caracteristica, valor, clumpThickness: mitoses)
+center2Reshape <- gather(center2_df, caracteristica, valor, 1: 9)
+center3Reshape <- gather(center3_df, caracteristica, valor, 1: 9)
+center4Reshape <- gather(center4_df, caracteristica, valor, 1: 9)
+center5Reshape <- gather(center5_df, caracteristica, valor, 1: 9)
+center6Reshape <- gather(center6_df, caracteristica, valor, 1: 9)
 
 ggplot(data = center2Reshape, aes(x = caracteristica, y = cluster2, fill = valor)) +
   scale_y_continuous(breaks = seq(1, 2, by = 1)) +
@@ -453,17 +704,64 @@ ggplot(data = center5Reshape, aes(x = caracteristica, y = cluster5, fill = valor
   scale_fill_gradientn(colours = hm.palette(90)) +
   theme_classic()
 
-ggplot(data = kmeans2 , aes(x = dim_1, y = dim_2)) +
-  geom_point(aes(color = cluster2)) + 
-  theme_bw()
+ggplot(data = center6Reshape, aes(x = caracteristica, y = cluster6, fill = valor)) +
+  scale_y_continuous(breaks = seq(1, 6, by = 1)) +
+  geom_tile() +
+  ggtitle("Mapa de Calor k = 6") +
+  xlab("caracteristica") +
+  ylab("cluster") +
+  coord_equal() +
+  scale_fill_gradientn(colours = hm.palette(90)) +
+  theme_classic()
 
+# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
+# ANALISIS DE RESULTADOS # //////////////////////////////////////////////////////////////////////////////////////////// #
+# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
 
-scatterplot3d(x = resultados$dim_1,
-              y = resultados$dim_2,
-              z = resultados$dim_3,
-              pch = 20, color = colores, cex.lab = 0.8,
-              grid = TRUE, box = FALSE)
-legend("bottom", legend = levels(resultados$numero),
-       col = colores, pch = 16, 
-       inset = -0.23, xpd = TRUE, horiz = TRUE)
+#______________________________________________________________________________________________________________________ #
+#______________________________________________________________________________________________________________________ #
+# I. GRAFICOS DE SILUETA
+
+sil2 <- silhouette(kmeans2$cluster, distance)
+sil3 <- silhouette(kmeans3$cluster, distance)
+sil4 <- silhouette(kmeans4$cluster, distance)
+sil5 <- silhouette(kmeans5$cluster, distance)
+
+silohuette.p1 <- fviz_silhouette(sil2)
+silohuette.p1
+silohuette.p2 <- fviz_silhouette(sil3)
+silohuette.p2
+silohuette.p3 <- fviz_silhouette(sil4)
+silohuette.p3
+silohuette.p4 <- fviz_silhouette(sil5)
+silohuette.p4
+
+#______________________________________________________________________________________________________________________ #
+#______________________________________________________________________________________________________________________ #
+# II. INTERPRETACION DEL CLUSTERING
+
+df.current$cluster2 <- as.factor(kmeans2$cluster)
+df.current$cluster3 <- as.factor(kmeans3$cluster)
+df.current$cluster4 <- as.factor(kmeans4$cluster)
+df.current$cluster5 <- as.factor(kmeans5$cluster)
+
+p1 <- ggparcoord(data = df.current, columns = c(1:9), groupColumn = "cluster2", scale = "std") + 
+  labs(x = "Caracteristicas", y = "Valor (en unidades de SD)", title = "Clustering k = 2")
+
+ggplotly(p1)
+
+p2 <- ggparcoord(data = df.current, columns = c(1:9), groupColumn = "cluster3", scale = "std") + 
+  labs(x = "Caracteristicas", y = "Valor (en unidades de SD)", title = "Clustering k = 3")
+
+ggplotly(p2)
+
+p3 <- ggparcoord(data = df.current, columns = c(1:9), groupColumn = "cluster4", scale = "std") + 
+  labs(x = "Caracteristicas", y = "Valor (en unidades de SD)", title = "Clustering k = 4")
+
+ggplotly(p3)
+
+p4 <- ggparcoord(data = df.current, columns = c(1:9), groupColumn = "cluster5", scale = "std") + 
+  labs(x = "Caracteristicas", y = "Valor (en unidades de SD)", title = "Clustering k = 5")
+
+ggplotly(p4)
 
