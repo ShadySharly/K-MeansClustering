@@ -9,7 +9,6 @@ library(mice)
 library(missForest)
 library(VIM)
 library(Hmisc)
-library(mi)
 library(factoextra)
 library(gridExtra)
 library(RColorBrewer)
@@ -53,8 +52,8 @@ columns = c("code",
 
 # Se procede a almacenar los datos desde el repositorio web "Breast Cancer Wisconsin" (Original), esto en
 # un data frame llamado "df"
-# url = "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data"
-url = "breast-cancer-wisconsin.data"
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data"
+#url = "breast-cancer-wisconsin.data"
 df = read.csv(url, header = F, sep=",", col.names = columns)
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
@@ -115,17 +114,17 @@ md.pattern(df)
 # que ademas estos missing values son para sola una variable, la cual es "bareNuclei".
 
 # Otra manera de verificar esto, es a través del paquete "VIM", para dilucidar esto a través
-# de gráficos mas agradables a la vista
-mice_plot <- aggr(
+# de gráficos mas agradables a la vista.
+  
+missing_data <- aggr(
   df, 
-  col = c('navyblue','yellow'),
-  numbers = TRUE, 
+  col = mdc(1: 2),
+  numbers = TRUE,
   sortVars = TRUE,
-  labels = names(df), 
+  labels = names(df),
   cex.axis = .55, 
-  gap = 3, 
-  ylab = c("Missing data","Pattern")
-)
+  gap = 3,
+  ylab = c("Proporción de Datos Omitidos", "Patrón de Datos Omitidos"))
 
 # Para el gráfico anterior, las barras de color amarillo representan porcentajes de 
 # missing values, mientras que las azules representan aquellos que no lo son, por ende se
@@ -146,6 +145,7 @@ mice_plot <- aggr(
 # de observaciones que se perderían al aplicar este método corresponde a un 2.3% aproximadamente,
 # un numero bastante bajo para considerar este método.
 df.listwise <- na.omit(df)
+summary(df.listwise)
 
 ####################
 # b. Imputation    #
@@ -160,7 +160,7 @@ df.listwise <- na.omit(df)
 # tarea, dependiendo de la distribución que sigue el conjunto de datos algunos paquetes podrían ser
 # efectivos y otros no, así también como la naturaleza de los datos.
 
-# - Usando "mice Package"
+### Usando "mice Package" ###
 # Este paquete permite generar múltiples imputaciones asumiendo que los valores omitidos siguen una
 # MAR (Missing at Random), lo que quiere decir que no existe una relación de causalidad que relacione
 # un valor omitido, con alguna variable u otra observación, en otras palabras, el valor omitido
@@ -186,18 +186,17 @@ df.miceImp3 <- complete(miceImp, 3)
 df.miceImp4 <- complete(miceImp, 4)
 df.miceImp5 <- complete(miceImp, 5)
 
-# Ahora bien, como se generan 5 conjuntos de datos distintos en este caso, una buena practica
-# consiste en combinar los resultados para obtener una predicción mas confiable.
-
-# - Usando "missForest Package"
+### Usando "missForest Package" ###
 # Otra de las formas de realizar imputaciones, consiste en implementar un método basado en el 
 # algoritmo de "Random Forest", aplicable para datos no parametricos, osea aquellos que no siguen una
 # distribución normal. Para esto se crea un modelo de Random Forest para cada variable, para 
 # predecir los missing values de la variable basados en los valores observados.
 forestImp <- missForest(df)
+summary(forestImp)
 
 # Valores imputados
 df.forestImp <- forestImp$ximp
+df.forestImp$bareNuclei = round(df.forestImp$bareNuclei)
 
 # Error de Imputación
 forestImp$OOBerror
@@ -211,6 +210,7 @@ forestImp$OOBerror
 # imputación
 df.miscMeanImp <- df
 df.miscMeanImp$bareNuclei <- with(df, impute(bareNuclei, mean))
+df.miscMeanImp$bareNuclei = round(df.miscMeanImp$bareNuclei)
 
 df.miscRandImp <- df
 df.miscRandImp$bareNuclei <- with(df, impute(bareNuclei, 'random'))
@@ -224,16 +224,14 @@ df.miscMinImp$bareNuclei <- with(df, impute(bareNuclei, min))
 df.miscMaxImp <- df
 df.miscMaxImp$bareNuclei <- with(df, impute(bareNuclei, max))
 
-# - Usando "mi Package"
-mi_data <- mi(df, seed = 335)
-summary(mi_data)
 
 #______________________________________________________________________________________________________________________ #
 #______________________________________________________________________________________________________________________ #
 # II. REDUCCION DE DIMENSIONALIDAD
 
-apply(df.listwise, 2, var)
-apply(df.forestImp, 2, var)
+
+
+
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
 # CLUSTERING # //////////////////////////////////////////////////////////////////////////////////////////////////////// #
@@ -260,7 +258,7 @@ apply(df.forestImp, 2, var)
 #______________________________________________________________________________________________________________________ #
 # I. TEST DE NORMALIDAD
 
-df.current <- df.forestImp
+df.current <- df.listwise
 
 ###################
 # a. Hipótesis    #
@@ -286,7 +284,7 @@ df.current <- df.forestImp
 
 hist.var1 <- ggplot(data = df.current, aes(clumpThickness)) + 
   geom_histogram(breaks = seq(1, 10, by = 1), col = "red", aes(fill = ..count.., y = ..density..)) +
-  scale_fill_gradient("Count", low = "yellow", high = "red") +
+  scale_fill_gradient("Cantidad", low = "yellow", high = "red") +
   geom_density(col = 1)
 
 hist.var1
@@ -481,9 +479,11 @@ shapiro.test(df.current$mitoses)
 # apartado del Test de Normalidad, los datos no siguen una distribución normal, razón por la cual no
 # resulta recomendable utilizar 
 
-gower.dist <- daisy(as.matrix(df.current), metric = "gower", stand = FALSE)
-manhattan.dist <- daisy(as.matrix(df.current), metric = "manhattan", stand = FALSE)
-distance <- gower.dist
+euclidean_dist <- daisy(df.current, metric = "euclidean", stand = FALSE)
+gower_dist <- daisy(df.current, metric = "gower", stand = FALSE)
+manhattan_dist <- daisy(df.current, metric = "manhattan", stand = FALSE)
+distance <- gower_dist
+distance_matrix <- as.matrix(distance)
 
 #########################
 # a. Método del Codo    #
@@ -495,7 +495,7 @@ distance <- gower.dist
 # aumentar en uno el valor de k, la idea básica es escoger un k cuya transición signifique una caída
 # significante de la WCSS, lo suficiente para compensar el ingreso de un nuevo cluster.
 
-fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "wss", k.max = 10) + 
+fviz_nbclust(distance_matrix, kmeans, nstart = 25, method = "wss", k.max = 10) + 
   ggtitle("Método del Codo") + 
   xlab("k") +
   ylab("WCSS") +
@@ -520,7 +520,7 @@ fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "wss", k.max = 1
 # cluster, por consiguiente, una gran promedio en el ancho de la silueta indica un buen
 # clustering.
 
-fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "silhouette", k.max = 10) + 
+fviz_nbclust(distance_matrix, kmeans, nstart = 25, method = "silhouette", k.max = 10) + 
   ggtitle("Silhouette Method") + 
   xlab("k") +
   ylab("Ancho Promedio de Silueta")
@@ -548,20 +548,20 @@ fviz_nbclust(as.matrix(distance), kmeans, nstart = 25, method = "silhouette", k.
 #______________________________________________________________________________________________________________________ #
 # III. ALGORITMO K-MEDIAS
 
-kmeans2 <- kmeans(as.matrix(distance), 2, iter.max = 1000, nstart = 25)
+kmeans2 <- kmeans(distance_matrix, 2, nstart = 25)
 kmeans2
-kmeans3 <- kmeans(as.matrix(distance), 3, iter.max = 1000, nstart = 25)
+kmeans3 <- kmeans(distance_matrix, 3, nstart = 25)
 kmeans3
-kmeans4 <- kmeans(as.matrix(distance), 4, iter.max = 1000, nstart = 25)
+kmeans4 <- kmeans(distance_matrix, 4, nstart = 25)
 kmeans4
-kmeans5 <- kmeans(as.matrix(distance), 5, iter.max = 1000, nstart = 25)
+kmeans5 <- kmeans(distance_matrix, 5, nstart = 25)
 kmeans5
-kmeans6 <- kmeans(as.matrix(distance), 6, iter.max = 1000, nstart = 25)
+kmeans6 <- kmeans(distance_matrix, 6, nstart = 25)
 kmeans6
 
 kmeans2.p <- fviz_cluster(
   kmeans2,
-  data = as.matrix(distance),
+  data = distance_matrix,
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 2",
@@ -571,21 +571,9 @@ kmeans2.p <- fviz_cluster(
 )
 kmeans2.p
 
-kmeansA.p <- fviz_cluster(
-  kmeans2,
-  data = as.matrix(distance),
-  geom = "point",
-  ellipse.type = "norm",
-  main = "Clusters k = 2",
-  xlab = "X",
-  ylab = "Y",
-  palette = "jco"
-)
-kmeansA.p
-
 kmeans3.p <- fviz_cluster(
   kmeans3,
-  data = as.matrix(distance),
+  data = distance_matrix,
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 3",
@@ -597,7 +585,7 @@ kmeans3.p
 
 kmeans4.p <- fviz_cluster(
   kmeans4,
-  data = as.matrix(distance),
+  data = distance_matrix,
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 4",
@@ -609,7 +597,7 @@ kmeans4.p
 
 kmeans5.p <- fviz_cluster(
   kmeans5,
-  data = as.matrix(distance),
+  data = distance_matrix,
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 5",
@@ -621,7 +609,7 @@ kmeans5.p
 
 kmeans6.p <- fviz_cluster(
   kmeans6,
-  data = as.matrix(distance),
+  data = distance_matrix,
   geom = "point",
   ellipse.type = "norm",
   main = "Clusters k = 6",
