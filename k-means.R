@@ -725,8 +725,12 @@ silohuette.p3
 silohuette.p4 <- fviz_silhouette(sil5)
 silohuette.p4
 
-##
+####
 
+# Comparacion de resultados respecto a si la muestra de un tumor efectivamente
+# correspondia a uno canceroso o no
+
+# La comparacion se realiza con el dataframe original, que incluye la variable class
 df.original.n = nrow(df.original)
 df.original.m = ncol(df.original)
 
@@ -737,16 +741,273 @@ for (row in 1:df.original.n) {
     }
   }
 }
+
+# Se le aplica el mismo preprocesamietno
 df.original$bareNuclei <- as.integer(df.original$bareNuclei)
 df.original <- na.omit(df.original)
-clusterId <- kmeans2$cluster
-
 classId <- df.original$class
+classId <- sapply(classId, function(x) if(x == 2) "Benigno" else "Canceroso")
 
-by_clusterId <- data.frame(clusterId, classId) %>% group_by(clusterId)
-by_clusterId %>% summarize(
-  disp = mean(classId)
+#Con k=2
+clusterId2 <- kmeans2$cluster
+by_clusterId <- data.frame(clusterId2, classId) %>% group_by(clusterId2,classId)
+results2 <- by_clusterId %>% summarise(
+   cases = n()
 )
+
+geomcol2 <- ggplot(results2, aes(clusterId2,cases)) + 
+  geom_col(aes(fill=classId), position = "dodge") +
+  scale_x_continuous(breaks = seq(1, 2, by = 1)) +
+  ggtitle("Gráfico de barras de Clustering de 2 grupos") +
+  xlab("Cluster") +
+  ylab("Casos") +
+  scale_fill_discrete(name = "Clase") +
+  annotate(geom = "text", x = 0.79 , y = 22, label = "3%") +
+  annotate(geom = "text", x = 1.23 , y = 230, label = "97%") +
+  annotate(geom = "text", x = 1.79 , y = 455, label = "95%") +
+  annotate(geom = "text", x = 2.23 , y = 40, label = "5%")
+geomcol2
+
+#Con k=3
+clusterId3 <- kmeans3$cluster
+by_clusterId <- data.frame(clusterId3, classId) %>% group_by(clusterId3,classId)
+results3 <- by_clusterId %>% summarise(
+  cases = n()
+)
+
+geomcol3 <- ggplot(results3, aes(clusterId3,cases)) + 
+  geom_col(aes(fill=classId), position = "dodge") +
+  scale_x_continuous(breaks = seq(1, 3, by = 1)) +
+  ggtitle("Gráfico de barras de Clustering de 3 grupos") +
+  xlab("Cluster") +
+  ylab("Casos") +
+  scale_fill_discrete(name = "Clase") +
+  annotate(geom = "text", x = 0.79 , y = 28, label = "10%") +
+  annotate(geom = "text", x = 1.23 , y = 140, label = "90%") +
+  annotate(geom = "text", x = 1.79 , y = 444, label = "98%") +
+  annotate(geom = "text", x = 2.23 , y = 25, label = "2%") +
+  annotate(geom = "text", x = 3 , y = 118, label = "100%")
+geomcol3
+
+#Con k=4
+clusterId4 <- kmeans4$cluster
+by_clusterId <- data.frame(clusterId4, classId) %>% group_by(clusterId4,classId)
+results4 <- by_clusterId %>% summarise(
+  cases = n()
+)
+
+geomcol4 <- ggplot(results4, aes(clusterId4,cases)) + 
+  geom_col(aes(fill=classId), position = "dodge") +
+  scale_x_continuous(breaks = seq(1, 4, by = 1)) +
+  ggtitle("Gráfico de barras de Clustering de 4 grupos") +
+  xlab("Cluster") +
+  ylab("Casos") +
+  scale_fill_discrete(name = "Clase") +
+  annotate(geom = "text", x = 0.79 , y = 445, label = "99%") +
+  annotate(geom = "text", x = 1.23 , y = 18, label = "1%") +
+  annotate(geom = "text", x = 2 , y = 78, label = "100%") +
+  annotate(geom = "text", x = 2.79 , y = 26, label = "14%") +
+  annotate(geom = "text", x = 3.23 , y = 99, label = "86%") +
+  annotate(geom = "text", x = 3.79 , y = 18, label = "2%") +
+  annotate(geom = "text", x = 4.23 , y = 105, label = "98%")
+geomcol4
+
+#Con k=5
+clusterId5 <- kmeans5$cluster
+by_clusterId <- data.frame(clusterId5, classId) %>% group_by(clusterId5,classId)
+results5 <- by_clusterId %>% summarise(
+  cases = n()
+)
+
+geomcol5 <- ggplot(results5, aes(clusterId5,cases)) + 
+  geom_col(aes(fill=classId), position = "dodge") +
+  scale_x_continuous(breaks = seq(1, 5, by = 1)) +
+  ggtitle("Gráfico de barras de Clustering de 5 grupos") +
+  xlab("Cluster") +
+  ylab("Casos") +
+  scale_fill_discrete(name = "Clase") +
+  annotate(geom = "text", x = 0.79 , y = 23, label = "14%") +
+  annotate(geom = "text", x = 1.23 , y = 88, label = "86%") +
+  annotate(geom = "text", x = 2 , y = 76, label = "100%") +
+  annotate(geom = "text", x = 3 , y = 383, label = "100%") +
+  annotate(geom = "text", x = 3.79 , y = 17, label = "2%") +
+  annotate(geom = "text", x = 4.23 , y = 102, label = "98%") +
+  annotate(geom = "text", x = 4.79 , y = 73, label = "83%") +
+  annotate(geom = "text", x = 5.27 , y = 23, label = "17%")
+geomcol5
+
+#Con k=6
+clusterId6 <- kmeans6$cluster
+by_clusterId <- data.frame(clusterId6, classId) %>% group_by(clusterId6,classId)
+results6 <- by_clusterId %>% summarise(
+  cases = n()
+)
+
+geomcol6 <- ggplot(results6, aes(clusterId6,cases)) + 
+  geom_col(aes(fill=classId), position = "dodge") +
+  scale_x_continuous(breaks = seq(1, 6, by = 1)) +
+  ggtitle("Gráfico de barras de Clustering de 6 grupos") +
+  xlab("Cluster") +
+  ylab("Casos") +
+  scale_fill_discrete(name = "Clase")+
+  annotate(geom = "text", x = 1 , y = 385, label = "100%") +
+  annotate(geom = "text", x = 2 , y = 75, label = "100%") +
+  annotate(geom = "text", x = 2.79 , y = 30, label = "14%") +
+  annotate(geom = "text", x = 3.23 , y = 87, label = "86%") +
+  annotate(geom = "text", x = 3.79 , y = 18, label = "3%") +
+  annotate(geom = "text", x = 4.23 , y = 93, label = "97%") +
+  annotate(geom = "text", x = 5 , y = 34, label = "100%") +
+  annotate(geom = "text", x = 5.79 , y = 74, label = "83%") +
+  annotate(geom = "text", x = 6.32 , y = 28, label = "17%")
+geomcol6
+
+grid.arrange(geomcol2, geomcol3, geomcol4, geomcol5, geomcol6, nrow = 3)
+
+########
+
+# Se calcula la media y mediana para los elementos de cada cluster
+
+#Para k=2
+clusterInfo2 <- data.frame(clusterId2, df.original) %>% group_by(clusterId2)
+clusterInfo2.mean <- clusterInfo2 %>% summarise(
+  clumpThickness = mean(clumpThickness),
+  unifCellSize = mean(unifCellSize),
+  unifCellShape = mean(unifCellShape),
+  marginalAdhesion = mean(marginalAdhesion),
+  epithCellSize = mean(epithCellSize),
+  bareNuclei = mean(bareNuclei),
+  blandChromatin = mean(blandChromatin),
+  normalNucleoli = mean(normalNucleoli),
+  mitoses = mean(mitoses)
+)
+clusterInfo2.mean
+
+clusterInfo2.median <- clusterInfo2 %>% summarise(
+  clumpThickness = median(clumpThickness),
+  unifCellSize = median(unifCellSize),
+  unifCellShape = median(unifCellShape),
+  marginalAdhesion = median(marginalAdhesion),
+  epithCellSize = median(epithCellSize),
+  bareNuclei = median(bareNuclei),
+  blandChromatin = median(blandChromatin),
+  normalNucleoli = median(normalNucleoli),
+  mitoses = median(mitoses)
+)
+clusterInfo2.median
+
+#Para k=3
+clusterInfo3 <- data.frame(clusterId3, df.original) %>% group_by(clusterId3)
+clusterInfo3.mean <- clusterInfo3 %>% summarise(
+  clumpThickness = mean(clumpThickness),
+  unifCellSize = mean(unifCellSize),
+  unifCellShape = mean(unifCellShape),
+  marginalAdhesion = mean(marginalAdhesion),
+  epithCellSize = mean(epithCellSize),
+  bareNuclei = mean(bareNuclei),
+  blandChromatin = mean(blandChromatin),
+  normalNucleoli = mean(normalNucleoli),
+  mitoses = mean(mitoses)
+)
+clusterInfo3.mean
+
+clusterInfo3.median <- clusterInfo3 %>% summarise(
+  clumpThickness = median(clumpThickness),
+  unifCellSize = median(unifCellSize),
+  unifCellShape = median(unifCellShape),
+  marginalAdhesion = median(marginalAdhesion),
+  epithCellSize = median(epithCellSize),
+  bareNuclei = median(bareNuclei),
+  blandChromatin = median(blandChromatin),
+  normalNucleoli = median(normalNucleoli),
+  mitoses = median(mitoses)
+)
+clusterInfo3.median
+
+#Para k=4
+clusterInfo4 <- data.frame(clusterId4, df.original) %>% group_by(clusterId4)
+clusterInfo4.mean <- clusterInfo4 %>% summarise(
+  clumpThickness = mean(clumpThickness),
+  unifCellSize = mean(unifCellSize),
+  unifCellShape = mean(unifCellShape),
+  marginalAdhesion = mean(marginalAdhesion),
+  epithCellSize = mean(epithCellSize),
+  bareNuclei = mean(bareNuclei),
+  blandChromatin = mean(blandChromatin),
+  normalNucleoli = mean(normalNucleoli),
+  mitoses = mean(mitoses)
+)
+clusterInfo4.mean
+
+clusterInfo4.median <- clusterInfo4 %>% summarise(
+  clumpThickness = median(clumpThickness),
+  unifCellSize = median(unifCellSize),
+  unifCellShape = median(unifCellShape),
+  marginalAdhesion = median(marginalAdhesion),
+  epithCellSize = median(epithCellSize),
+  bareNuclei = median(bareNuclei),
+  blandChromatin = median(blandChromatin),
+  normalNucleoli = median(normalNucleoli),
+  mitoses = median(mitoses)
+)
+clusterInfo4.median
+
+#Para k=5
+clusterInfo5 <- data.frame(clusterId5, df.original) %>% group_by(clusterId5)
+clusterInfo5.mean <- clusterInfo5 %>% summarise(
+  clumpThickness = mean(clumpThickness),
+  unifCellSize = mean(unifCellSize),
+  unifCellShape = mean(unifCellShape),
+  marginalAdhesion = mean(marginalAdhesion),
+  epithCellSize = mean(epithCellSize),
+  bareNuclei = mean(bareNuclei),
+  blandChromatin = mean(blandChromatin),
+  normalNucleoli = mean(normalNucleoli),
+  mitoses = mean(mitoses)
+)
+clusterInfo5.mean
+
+clusterInfo5.median <- clusterInfo5 %>% summarise(
+  clumpThickness = median(clumpThickness),
+  unifCellSize = median(unifCellSize),
+  unifCellShape = median(unifCellShape),
+  marginalAdhesion = median(marginalAdhesion),
+  epithCellSize = median(epithCellSize),
+  bareNuclei = median(bareNuclei),
+  blandChromatin = median(blandChromatin),
+  normalNucleoli = median(normalNucleoli),
+  mitoses = median(mitoses)
+)
+clusterInfo5.median
+
+#Para k=6
+clusterInfo6 <- data.frame(clusterId6, df.original) %>% group_by(clusterId6)
+clusterInfo6.mean <- clusterInfo6 %>% summarise(
+  clumpThickness = mean(clumpThickness),
+  unifCellSize = mean(unifCellSize),
+  unifCellShape = mean(unifCellShape),
+  marginalAdhesion = mean(marginalAdhesion),
+  epithCellSize = mean(epithCellSize),
+  bareNuclei = mean(bareNuclei),
+  blandChromatin = mean(blandChromatin),
+  normalNucleoli = mean(normalNucleoli),
+  mitoses = mean(mitoses)
+)
+clusterInfo6.mean
+
+clusterInfo6.median <- clusterInfo6 %>% summarise(
+  clumpThickness = median(clumpThickness),
+  unifCellSize = median(unifCellSize),
+  unifCellShape = median(unifCellShape),
+  marginalAdhesion = median(marginalAdhesion),
+  epithCellSize = median(epithCellSize),
+  bareNuclei = median(bareNuclei),
+  blandChromatin = median(blandChromatin),
+  normalNucleoli = median(normalNucleoli),
+  mitoses = median(mitoses)
+)
+clusterInfo6.median
+
+
 #______________________________________________________________________________________________________________________ #
 #______________________________________________________________________________________________________________________ #
 # II. INTERPRETACION DEL CLUSTERING
